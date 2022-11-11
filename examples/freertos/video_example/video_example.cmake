@@ -71,42 +71,4 @@ merge_binaries(example_freertos_video_example tile0_example_freertos_video_examp
 create_run_target(example_freertos_video_example)
 create_debug_target(example_freertos_video_example)
 
-#**********************
-# Filesystem support targets
-#**********************
-if(${CMAKE_HOST_SYSTEM_NAME} STREQUAL Windows)
-    add_custom_command(
-        OUTPUT example_freertos_video_example_fat.fs
-        COMMAND ${CMAKE_COMMAND} -E make_directory %temp%/fatmktmp/fs
-        COMMAND ${CMAKE_COMMAND} -E copy demo.txt %temp%/fatmktmp/fs/demo.txt
-        COMMAND fatfs_mkimage --input=%temp%/fatmktmp --output=example_freertos_video_example_fat.fs
-        BYPRODUCTS %temp%/fatmktmp
-        DEPENDS example_freertos_video_example
-        COMMENT
-            "Create filesystem"
-        WORKING_DIRECTORY
-            ${CMAKE_CURRENT_LIST_DIR}/filesystem_support
-        VERBATIM
-    )
-else()
-    add_custom_command(
-        OUTPUT example_freertos_video_example_fat.fs
-        COMMAND bash -c "tmp_dir=$(mktemp -d) && fat_mnt_dir=$tmp_dir && mkdir -p $fat_mnt_dir && mkdir $fat_mnt_dir/fs && cp ./demo.txt $fat_mnt_dir/fs/demo.txt && fatfs_mkimage --input=$tmp_dir --output=example_freertos_video_example_fat.fs"
-        DEPENDS example_freertos_video_example
-        COMMENT
-            "Create filesystem"
-        WORKING_DIRECTORY
-            ${CMAKE_CURRENT_LIST_DIR}/filesystem_support
-        VERBATIM
-    )
-endif()
 
-create_filesystem_target(example_freertos_video_example)
-
-add_custom_target(flash_fs_example_freertos_video_example
-    COMMAND xflash --quad-spi-clock 50MHz --factory example_freertos_video_example.xe --boot-partition-size 0x100000 --data example_freertos_video_example_fat.fs
-    DEPENDS make_fs_example_freertos_video_example
-    COMMENT
-        "Flash filesystem"
-    VERBATIM
-)

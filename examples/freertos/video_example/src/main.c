@@ -9,18 +9,15 @@
 #include "FreeRTOS.h"
 #include "queue.h"
 
-/* Library headers */
-#include "fs_support.h"
-
 /* App headers */
 #include "app_conf.h"
 #include "platform/platform_init.h"
 #include "platform/driver_instances.h"
 #include "mem_analysis/mem_analysis.h"
 #include "example_pipeline/example_pipeline.h"
-#include "filesystem/filesystem_demo.h"
 #include "gpio_ctrl/gpio_ctrl.h"
 #include "uart/uart_demo.h"
+#include "inference/inference_task.h"
 
 void vApplicationMallocFailedHook( void )
 {
@@ -40,22 +37,15 @@ void startup_task(void *arg)
     platform_start();
 
 #if ON_TILE(0)
-    /* Initialize filesystem  */
-    rtos_fatfs_init(qspi_flash_ctx);
-
-    /* Create the filesystem demo task */
-    filesystem_demo_create(appconfFILESYSTEM_DEMO_TASK_PRIORITY);
+    /* Init neural network  */
+    inference_task_init(appconfINFERENCE_TASK_PRIORITY);
+ 
 #endif
 
 #if ON_TILE(1)
     /* Create the gpio control task */
     gpio_ctrl_create(appconfGPIO_TASK_PRIORITY);
 
-    /* Create audio pipeline */
-    example_pipeline_init(appconfAUDIO_PIPELINE_TASK_PRIORITY);
-
-    /* Create uart demo tasks and receivers */
-    uart_demo_create(appconfFILESYSTEM_DEMO_TASK_PRIORITY);
 #endif
 
 	for (;;) {
