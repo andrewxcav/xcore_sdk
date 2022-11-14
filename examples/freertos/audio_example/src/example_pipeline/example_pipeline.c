@@ -13,6 +13,20 @@
 #include "example_pipeline.h"
 #include "platform/driver_instances.h"
 
+#if ON_TILE(IO_TILE)
+
+typedef struct {
+    int32_t samples[appconfAUDIO_PIPELINE_CHANNELS][appconfAUDIO_PIPELINE_FRAME_ADVANCE];
+    int32_t mic_samples_passthrough[appconfAUDIO_PIPELINE_CHANNELS][appconfAUDIO_PIPELINE_FRAME_ADVANCE];
+
+    /* Below is additional context needed by other stages on a per frame basis */
+    int32_t vnr_pred_flag;
+    float_s32_t max_ref_energy;
+    float_s32_t aec_corr_factor;
+    int32_t ref_active_flag;
+} frame_data_t;
+
+
 #if appconfMIC_COUNT != 2
 #error appconfMIC_COUNT must be 2
 #endif
@@ -31,45 +45,37 @@ BaseType_t audiopipeline_set_stage1_gain( BaseType_t xNewGain )
     return xStage0_Gain;
 }
 
-void *example_pipeline_input(void *data)
+static void *audio_pipeline_input_i(void *input_app_data)
 {
-    (void) data;
+    frame_data_t *frame_data;
 
-    int32_t * audio_frame;
+    frame_data = pvPortMalloc(sizeof(frame_data_t));
+    memset(frame_data, 0x00, sizeof(frame_data_t));
 
-    audio_frame = pvPortMalloc(appconfFRAMES_IN_ALL_CHANS * sizeof(int32_t));
-
-    rtos_mic_array_rx(
-            mic_array_ctx,
-            audio_frame,
-            appconfAUDIO_FRAME_LENGTH,
+    size_t bytes_received = 0;
+    bytes_received = rtos_intertile_rx_len(
+            intertile_ctx,
+            appconfAUDIOPIPELINE_PORT,
             portMAX_DELAY);
 
-    return audio_frame;
+    xassert(bytes_received == sizeof(frame_data_t));
+
+    rtos_intertile_rx_data(
+            intertile_ctx,
+            frame_data,
+            bytes_received);
+
+    return frame_data;
 }
 
-int example_pipeline_output(void *audio_frame, void *data)
+static int audio_pipeline_output_i(frame_data_t *frame_data,
+                                   void *output_app_data)
 {
-    (void) data;
-    int32_t * chan_samp = audio_frame;
-    int32_t samp_chan [appconfFRAMES_IN_ALL_CHANS];
-    // i2s drivers currently don't support [channel][sample] format so need to restructure it here
-    for(int i = 0; i < appconfAUDIO_FRAME_LENGTH; i++){
-        samp_chan[2 * i] = chan_samp[i];
-        samp_chan[2 * i + 1] = chan_samp[i + appconfAUDIO_FRAME_LENGTH];
-    }
-
-    rtos_i2s_tx(
-            i2s_ctx,
-            samp_chan,
-            appconfAUDIO_FRAME_LENGTH,
-            portMAX_DELAY);
-
-    vPortFree(audio_frame);
-
-    return 0;
+    return audio_pipeline_output(output_app_data,
+                               (int32_t **)frame_data->samples,
+                               6,
+                               appconfAUDIO_PIPELINE_FRAME_ADVANCE);
 }
-
 void stage1(int32_t * audio_frame)
 {
     bfp_s32_t ch0, ch1;
@@ -123,13 +129,13 @@ void example_pipeline_init(UBaseType_t priority)
 	};
 
 	const configSTACK_DEPTH_TYPE stage_stack_sizes[stage_count] = {
-			configMINIMAL_STACK_SIZE + RTOS_THREAD_STACK_SIZE(stage0) + RTOS_THREAD_STACK_SIZE(example_pipeline_input),
-			configMINIMAL_STACK_SIZE + RTOS_THREAD_STACK_SIZE(stage1) + RTOS_THREAD_STACK_SIZE(example_pipeline_output)
+			configMINIMAL_STACK_SIZE + RTOS_THREAD_STACK_SIZE(stage0) + RTOS_THREAD_STACK_SIZE(audio_pipeline_input_i),
+			configMINIMAL_STACK_SIZE + RTOS_THREAD_STACK_SIZE(stage1) + RTOS_THREAD_STACK_SIZE(audio_pipeline_output_i)
 	};
 
 	generic_pipeline_init(
-			example_pipeline_input,
-			example_pipeline_output,
+			audio_pipeline_input_i,
+			audio_pipeline_output_i,
             NULL,
             NULL,
 			stages,
@@ -139,3 +145,4 @@ void example_pipeline_init(UBaseType_t priority)
 }
 
 #undef MIN
+#endif

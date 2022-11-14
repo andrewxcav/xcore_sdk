@@ -4,6 +4,10 @@
 #ifndef APP_CONF_H_
 #define APP_CONF_H_
 
+/* Define tiles for a generil ai/ml demo */
+#define IO_TILE (1)
+#define INFERENCE_TILE (0)
+
 /* Intertile Communication Configuration */
 #define appconfI2C_MASTER_RPC_PORT 10
 #define appconfI2C_MASTER_RPC_PRIORITY (configMAX_PRIORITIES/2)
@@ -38,6 +42,9 @@
 #define appconfFRAMES_IN_ALL_CHANS              (appconfAUDIO_FRAME_LENGTH * appconfMIC_COUNT)
 #define appconfPOWER_THRESHOLD                  (float)0.00001
 #define appconfEXP                              -31
+#define appconfAUDIO_PIPELINE_CHANNELS          (1)
+#define appconfAUDIO_PIPELINE_FRAME_ADVANCE     (240)
+#define appconfAUDIOPIPELINE_PORT               (42)
 
 /* UART Configuration */
 #define appconfUART_BAUD_RATE                   806400
